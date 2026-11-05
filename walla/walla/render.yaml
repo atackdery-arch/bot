@@ -1,0 +1,11 @@
+services:
+  - type: worker
+    name: wallapop-telegram-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: BOT_TOKEN
+        value: 8651428976:AAEoES1Hi_quOJ_Fmd1cxmlJzSpybiBGldw
+      - key: PYTHONUNBUFFERED
+        value: "1"

@@ -28,6 +28,7 @@ from telegram.ext import (
 )
 
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -77,7 +78,7 @@ IS_CLOUD = os.environ.get("RENDER") is not None or sys.platform.startswith("linu
 
 
 def check_single_instance():
-    """Garantiza que sólo una instancia del bot se ejecute en local (Windows)."""
+    """Garantiza que sólo una instancia del bot se ejecute en local."""
     if IS_CLOUD:
         return
     global lock_socket
@@ -111,99 +112,89 @@ def get_main_keyboard():
 
 
 # ==========================================
-# CONFIGURACIÓN ROBUSTA DE SELENIUM
+# CONFIGURACIÓN DE CHROMIUM / CHROMEDRIVER (HEADLESS)
 # ==========================================
-def get_browser_driver():
-    """Crea una instancia de navegador compatible tanto con Windows local (Edge visible) como con Render/Linux (Chrome/Edge headless con sandbox deshabilitado)."""
-    is_headless = IS_CLOUD or os.environ.get("HEADLESS", "false").lower() == "true"
+def get_chromium_driver():
+    """Inicia Chromium en modo Headless (sin interfaz gráfica) adaptado para Render Linux y entornos cloud."""
+    options = webdriver.ChromeOptions()
+    
+    # 1. Configuración Headless y Contenedores Linux
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--remote-debugging-port=9222")
 
-    # Argumentos comunes anti-detección
-    common_args = [
-        "--disable-blink-features=AutomationControlled",
-        "--disable-infobars",
+    # 2. Opciones Anti-Detección
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    )
+
+    # 3. Detección de binario de Chromium en Render o Linux
+    chromium_bin_paths = [
+        os.environ.get("CHROME_BIN", ""),
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/opt/render/project/.render/chrome/opt/google/chrome/google-chrome",
     ]
+    for bin_path in chromium_bin_paths:
+        if bin_path and os.path.exists(bin_path):
+            options.binary_location = bin_path
+            logger.info(f"Binario de Chromium localizado en: {bin_path}")
+            break
 
-    # Argumentos indispensables para contenedores Linux (Render / Docker)
-    cloud_args = [
-        "--headless=new",
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-software-rasterizer",
-        "--remote-debugging-port=9222",
-        "--window-size=1920,1080",
+    # 4. Detección de ChromeDriver en el sistema
+    driver_paths = [
+        "/usr/bin/chromedriver",
+        "/usr/lib/chromium/chromedriver",
+        "/usr/lib/chromium-browser/chromedriver",
     ]
+    service = None
+    for d_path in driver_paths:
+        if os.path.exists(d_path):
+            service = Service(executable_path=d_path)
+            logger.info(f"ChromeDriver localizado en: {d_path}")
+            break
 
-    # --- 1. En Windows, intentar Edge primero (visible) ---
-    if not IS_CLOUD:
-        try:
-            logger.info("Iniciando Edge en Windows...")
-            edge_opts = webdriver.EdgeOptions()
-            for arg in common_args:
-                edge_opts.add_argument(arg)
-            edge_opts.add_argument("--start-maximized")
-            edge_opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-            edge_opts.add_experimental_option("useAutomationExtension", False)
-            return webdriver.Edge(options=edge_opts)
-        except Exception as e:
-            logger.warning(f"Edge falló en Windows ({e}), probando Chrome...")
+    if service:
+        driver = webdriver.Chrome(service=service, options=options)
+    else:
+        driver = webdriver.Chrome(options=options)
 
-    # --- 2. En Render / Linux o fallback en Windows: Chrome ---
+    # Inyección de scripts para enmascarar navegación headless
     try:
-        logger.info("Iniciando Chrome...")
-        chrome_opts = webdriver.ChromeOptions()
-        for arg in common_args:
-            chrome_opts.add_argument(arg)
-        chrome_opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_opts.add_experimental_option("useAutomationExtension", False)
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+                window.navigator.chrome = {
+                    runtime: {},
+                };
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['es-ES', 'es', 'en-US', 'en'],
+                });
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5],
+                });
+            """
+        })
+    except Exception as e:
+        logger.warning(f"No se pudo inyectar script CDP: {e}")
 
-        if is_headless:
-            for arg in cloud_args:
-                chrome_opts.add_argument(arg)
-
-            # Buscar posibles rutas de binarios de Chrome en Render / Linux
-            possible_chrome_paths = [
-                os.environ.get("CHROME_BIN", ""),
-                "/opt/render/project/.render/chrome/opt/google/chrome/google-chrome",
-                "/usr/bin/google-chrome",
-                "/usr/bin/google-chrome-stable",
-                "/usr/bin/chromium",
-                "/usr/bin/chromium-browser",
-            ]
-            for path in possible_chrome_paths:
-                if path and os.path.exists(path):
-                    chrome_opts.binary_location = path
-                    logger.info(f"Binario de Chrome encontrado en: {path}")
-                    break
-        else:
-            chrome_opts.add_argument("--start-maximized")
-
-        return webdriver.Chrome(options=chrome_opts)
-    except Exception as e_chrome:
-        logger.warning(f"Chrome falló ({e_chrome}), intentando Edge como fallback...")
-
-    # --- 3. Edge en Linux (si está instalado) ---
-    try:
-        logger.info("Intentando Edge en Linux...")
-        edge_opts = webdriver.EdgeOptions()
-        for arg in common_args:
-            edge_opts.add_argument(arg)
-        edge_opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-        edge_opts.add_experimental_option("useAutomationExtension", False)
-        if is_headless:
-            for arg in cloud_args:
-                edge_opts.add_argument(arg)
-        else:
-            edge_opts.add_argument("--start-maximized")
-        return webdriver.Edge(options=edge_opts)
-    except Exception as e_edge:
-        logger.error(f"Error fatal: no se pudo iniciar ni Chrome ni Edge. Detalles: Chrome ({e_chrome}), Edge ({e_edge})")
-        raise RuntimeError(f"No se pudo iniciar el navegador. Si estás en Render, asegúrate de que Chrome está instalado. Error: {e_chrome}")
+    return driver
 
 
 def open_and_navigate_to_onboarding(url: str):
-    """Inicia el navegador y clica en Regístrate."""
-    driver = get_browser_driver()
+    """Inicia Chromium Headless y pulsa en Regístrate."""
+    driver = get_chromium_driver()
     driver.get(url)
 
     # 1. Esperar al botón de 'Regístrate'
@@ -327,7 +318,6 @@ def fill_otp_and_verify(driver, code: str):
     driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", otp_input)
     time.sleep(0.3)
 
-    # Enfocar y hacer clic
     try:
         otp_input.click()
     except Exception:
@@ -335,13 +325,11 @@ def fill_otp_and_verify(driver, code: str):
     driver.execute_script("arguments[0].focus();", otp_input)
     time.sleep(0.2)
 
-    # Limpiar y escribir cada dígito
     otp_input.clear()
     for char in code:
         otp_input.send_keys(char)
         time.sleep(0.05)
 
-    # Disparar eventos Input y Change por JS para asegurar la actualización de estado en React
     driver.execute_script("""
         const input = arguments[0];
         const val = arguments[1];
@@ -354,8 +342,6 @@ def fill_otp_and_verify(driver, code: str):
     """, otp_input, code)
 
     time.sleep(0.8)
-
-    # Clicar botón Verificar
     click_verificar_button(driver)
     time.sleep(3)
 
@@ -363,7 +349,6 @@ def fill_otp_and_verify(driver, code: str):
 def click_verificar_button(driver):
     """Localiza y pulsa el botón 'Verificar'."""
     wait = WebDriverWait(driver, 15)
-    # 1. Intentar por walla-button con texto Verificar
     try:
         wb = wait.until(
             lambda d: d.find_element(
@@ -387,19 +372,18 @@ def click_verificar_button(driver):
                 wb.click()
             except Exception:
                 driver.execute_script("arguments[0].click();", wb)
-        logger.info("Botón Verificar clicado exitosamente (walla-button).")
+        logger.info("Botón Verificar clicado exitosamente.")
         return
     except Exception as e:
         logger.warning(f"No se localizó walla-button Verificar directamente: {e}")
 
-    # 2. Fallback por selector XPath general o submit
     try:
         btn = driver.find_element(
             By.XPATH,
             "//button[contains(., 'Verificar')] | //*[@part='button'][contains(., 'Verificar')] | //button[@type='submit']"
         )
         driver.execute_script("arguments[0].click();", btn)
-        logger.info("Botón Verificar clicado exitosamente (fallback XPath).")
+        logger.info("Botón Verificar clicado por XPath.")
     except Exception as e:
         logger.error(f"Error clicando botón Verificar: {e}")
 
@@ -418,7 +402,6 @@ def wait_for_phone_screen(driver):
 def click_enviar_codigo_button(driver):
     """Localiza y pulsa el botón 'Enviar código'."""
     wait = WebDriverWait(driver, 15)
-    # 1. Intentar por walla-button con texto Enviar código
     try:
         wb = wait.until(
             lambda d: d.find_element(
@@ -447,7 +430,6 @@ def click_enviar_codigo_button(driver):
     except Exception as e:
         logger.warning(f"walla-button Enviar código no encontrado directamente: {e}")
 
-    # 2. Fallback XPath
     try:
         btn = driver.find_element(
             By.XPATH,
@@ -469,7 +451,7 @@ def write_phone_and_send_code(driver, phone_str: str):
 
 
 def cleanup_session_driver(chat_id: int):
-    """Cierra el driver de Edge/Chrome si existe para este usuario."""
+    """Cierra el driver de Chromium si existe para este usuario."""
     session = user_sessions.get(chat_id)
     if session and "driver" in session and session["driver"]:
         try:
@@ -489,12 +471,12 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_sessions[chat_id] = {"state": "IDLE"}
 
     welcome_text = (
-        "🤖 **¡Bienvenido al Bot de Registro Completo de Wallapop!**\n\n"
+        "🤖 **¡Bienvenido al Bot de Registro de Wallapop!**\n\n"
         "Este bot automatiza la creación y verificación de cuentas en Wallapop mediante "
-        "Selenium y completando los datos en tiempo real.\n\n"
+        "Chromium sin interfaz gráfica (Headless).\n\n"
         "⚡ **Flujo completo del proceso:**\n"
         "1️⃣ Pulsa el botón **New Account**.\n"
-        "2️⃣ Se iniciará el navegador y accederá al portal de Wallapop.\n"
+        "2️⃣ Se iniciará Chromium y accederá a Wallapop.\n"
         "3️⃣ Clicará automáticamente en **Regístrate**.\n"
         "4️⃣ Te pide tu **correo electrónico** y lo escribe en el formulario.\n"
         "5️⃣ Te pide tu **contraseña** y la escribe en su campo.\n"
@@ -516,7 +498,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /cancel: cancela la operación y cierra el navegador si está abierto."""
+    """Comando /cancel: cancela la operación y cierra Chromium si está abierto."""
     chat_id = update.effective_chat.id
     cleanup_session_driver(chat_id)
     user_sessions[chat_id] = {"state": "IDLE"}
@@ -560,7 +542,7 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     }
 
     status_msg = await query.message.reply_text(
-        "🚀 **Iniciando navegador...**\n"
+        "🚀 **Iniciando Chromium en segundo plano...**\n"
         "Accediendo a Wallapop Onboarding y pulsando en **Regístrate**, por favor espera unos segundos...",
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -571,16 +553,16 @@ async def button_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         user_sessions[chat_id]["state"] = "WAITING_EMAIL"
 
         await status_msg.edit_text(
-            "🌐 **¡Página de registro lista!**\n\n"
+            "🌐 **¡Página de registro lista en Chromium!**\n\n"
             "📧 Por favor, **escribe el correo electrónico** que deseas usar para esta cuenta:",
             parse_mode=ParseMode.MARKDOWN,
         )
     except Exception as e:
-        logger.error(f"Error al iniciar navegador: {e}", exc_info=True)
+        logger.error(f"Error al iniciar Chromium: {e}", exc_info=True)
         cleanup_session_driver(chat_id)
         user_sessions[chat_id] = {"state": "IDLE"}
         await status_msg.edit_text(
-            f"❌ *Error al iniciar el navegador o cargar la página:*\n`{str(e)}`\n\n"
+            f"❌ *Error al iniciar Chromium o cargar la página:*\n`{str(e)}`\n\n"
             "Por favor, inténtalo de nuevo pulsando el botón:",
             reply_markup=get_main_keyboard(),
             parse_mode=ParseMode.MARKDOWN,
@@ -838,7 +820,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "✅ **Verificación Email:** Completada\n"
                 "✅ **Verificación Teléfono:** Completada\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                "✨ Todo el proceso ha finalizado correctamente.\n"
+                "✨ Todo el proceso ha finalizado correctamente en Chromium.\n"
                 "¿Deseas registrar otra cuenta?"
             )
 
@@ -874,9 +856,9 @@ def main():
     check_single_instance()
 
     print("==================================================")
-    print("Iniciando Bot de Telegram para Wallapop...")
+    print("Iniciando Bot de Telegram para Wallapop con Chromium...")
     print(f"Token configurado: {BOT_TOKEN[:10]}...{BOT_TOKEN[-5:]}")
-    print(f"Modo entorno: {'Cloud / Render (Linux)' if IS_CLOUD else 'Local (Windows Edge)'}")
+    print(f"Modo headless sin interfaz gráfica activado.")
     print("Esperando interacciones de usuarios en Telegram...")
     print("==================================================")
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Script de build para Render Native Python Environment
+# Script de construcción para Render Native Python
 set -o errexit
 
 STORAGE_DIR=/opt/render/project/.render
 
 if [[ ! -d $STORAGE_DIR/chrome ]]; then
-  echo "...Descargando e instalando Google Chrome en Render..."
+  echo "...Descargando e instalando Chrome/Chromium en Render..."
   mkdir -p $STORAGE_DIR/chrome
   cd $STORAGE_DIR/chrome
   wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
@@ -13,9 +13,9 @@ if [[ ! -d $STORAGE_DIR/chrome ]]; then
   rm google-chrome-stable_current_amd64.deb
   cd /opt/render/project/src
 else
-  echo "...Usando Google Chrome desde cache..."
+  echo "...Chrome ya se encuentra en caché..."
 fi
 
-# Instalar dependencias de Python
+# Instalar dependencias Python
 pip install --upgrade pip
 pip install -r requirements.txt
