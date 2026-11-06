@@ -588,7 +588,7 @@ async def handle_esim_count(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         f"│ <b>ORDEN  :</b> <code>{num_esims}x eSIM Prepago (Nuevo)</code>\n"
         f"│ <b>TARJETA:</b> <code>{html.escape(tarjeta_info)}</code>\n"
         "└────────────────────────────────────┘\n\n"
-        "<pre>[>] Inicializando Microsoft Edge WebDriver...\n"
+        "<pre>[>] Inicializando Chrome WebDriver (headless)...\n"
         "[>] Conectando con los servidores de Simyo...</pre>\n\n"
         "🛰️ <b>PASO ACTUAL:</b>\n"
         "<code>Iniciando navegador y cargando la página...</code>"
@@ -610,7 +610,7 @@ class LiveTerminal:
         self.name = name
         self.lines_count = lines_count
         self.logs: list[str] = [
-            "[✓] Edge WebDriver inicializado",
+            "[✓] Chrome WebDriver inicializado (headless)",
             "[~] Conectando con simyo.es..."
         ]
         self.current_status: str = "Conectando con simyo.es..."
