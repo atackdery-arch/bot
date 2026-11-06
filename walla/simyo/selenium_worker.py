@@ -885,57 +885,132 @@ def run_simyo_order(
                 driver_callback(driver)
             except Exception as e_cb:
                 logger.warning(f"Error en driver_callback: {e_cb}")
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 30)
 
-        # 1. Cargar la página de tarifas móvil
+        # ── 1. Cargar la página de tarifas móvil ─────────────────────────────
         log(f"🌐 Entrando a {SIMYO_URL}...")
         driver.get(SIMYO_URL)
-        time.sleep(3)
+        time.sleep(5)  # tiempo para carga inicial de JS
 
-        # Gestionar banner de cookies si aparece
-        try:
-            cookie_btns = driver.find_elements(By.ID, "accept-all")
-            if not cookie_btns:
-                cookie_btns = driver.find_elements(By.CSS_SELECTOR, "button.js__cookies-all, #didomi-notice-agree-button")
-            if cookie_btns:
-                log("🍪 Aceptando cookies...")
-                driver.execute_script("arguments[0].click();", cookie_btns[0])
-                time.sleep(1.5)
-        except Exception as e:
-            logger.debug(f"Aviso de cookies no interactuable o ya cerrado: {e}")
+        # ── Gestionar banner de cookies (múltiples selectores) ───────────────
+        COOKIE_SELECTORS = [
+            (By.ID, "accept-all"),
+            (By.ID, "didomi-notice-agree-button"),
+            (By.CSS_SELECTOR, "button.js__cookies-all"),
+            (By.CSS_SELECTOR, "#onetrust-accept-btn-handler"),
+            (By.XPATH, "//button[contains(translate(., 'ACEPTAR', 'aceptar'), 'aceptar')]"),
+            (By.XPATH, "//button[contains(translate(., 'ACCEPT', 'accept'), 'accept all')]"),
+        ]
+        for by, sel in COOKIE_SELECTORS:
+            try:
+                els = driver.find_elements(by, sel)
+                vis = [e for e in els if e.is_displayed()]
+                if vis:
+                    log("🍪 Aceptando cookies...")
+                    driver.execute_script("arguments[0].click();", vis[0])
+                    time.sleep(2)
+                    break
+            except Exception:
+                pass
 
-        # 2. Localizar y clicar 'Comprar ya'
-        log("🛒 Seleccionando tarifa y clicando en 'Comprar ya'...")
-        wait.until(lambda d: d.find_elements(By.CSS_SELECTOR, "a.js-buyNow[href*='/simyo/cart']") or d.find_elements(By.CSS_SELECTOR, "a.js-buyNow"))
+        # ── 2. Localizar y clicar 'Comprar ya' ──────────────────────────────
+        log("🛒 Buscando botón 'Comprar ya'...")
 
-        buy_btns = driver.find_elements(By.CSS_SELECTOR, "a.js-buyNow[data-combined-tariff='tarifa-barata-hablar']")
-        if not buy_btns:
-            buy_btns = driver.find_elements(By.CSS_SELECTOR, "a.js-buyNow[href*='/simyo/cart']")
+        # Scroll para activar lazy-loading
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 3);")
+        time.sleep(1.5)
+        driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(1)
+
+        # Estrategias de búsqueda en orden de especificidad
+        BUY_STRATEGIES = [
+            # Selector específico de tarifa barata
+            (By.CSS_SELECTOR, "a.js-buyNow[data-combined-tariff='tarifa-barata-hablar']"),
+            # Cualquier js-buyNow con href al carrito
+            (By.CSS_SELECTOR, "a.js-buyNow[href*='/simyo/cart']"),
+            # Cualquier js-buyNow
+            (By.CSS_SELECTOR, "a.js-buyNow"),
+            # Botones con texto "Comprar"
+            (By.XPATH, "//a[contains(translate(normalize-space(), 'COMPRAR', 'comprar'), 'comprar')]"),
+            (By.XPATH, "//button[contains(translate(normalize-space(), 'COMPRAR', 'comprar'), 'comprar')]"),
+            # Texto exacto "Comprar ya"
+            (By.XPATH, "//a[normalize-space()='Comprar ya']"),
+            (By.XPATH, "//button[normalize-space()='Comprar ya']"),
+            # Clase genérica de CTA
+            (By.CSS_SELECTOR, "a[class*='buyNow'], button[class*='buyNow']"),
+            (By.CSS_SELECTOR, "a[class*='buy-now'], button[class*='buy-now']"),
+        ]
 
         target_buy = None
-        for b in buy_btns:
-            if b.is_displayed():
-                target_buy = b
-                break
-        if not target_buy and buy_btns:
-            target_buy = buy_btns[0]
+        t_buy = time.time()
+        while time.time() - t_buy < 45 and target_buy is None:
+            for by, sel in BUY_STRATEGIES:
+                try:
+                    els = driver.find_elements(by, sel)
+                    vis = [e for e in els if e.is_displayed()]
+                    if vis:
+                        target_buy = vis[0]
+                        log(f"✅ Botón encontrado con: {sel}")
+                        break
+                    elif els:
+                        target_buy = els[0]
+                        log(f"✅ Botón encontrado (oculto) con: {sel}")
+                        break
+                except Exception:
+                    pass
+            if target_buy is None:
+                time.sleep(1.5)
 
         if not target_buy:
-            raise Exception("No se encontró el botón 'Comprar ya' para la tarifa.")
+            # Captura de debug
+            dbg_path = os.path.abspath(f"debug_no_buy_{int(time.time())}.png")
+            try:
+                driver.save_screenshot(dbg_path)
+                log(f"📸 Captura de debug guardada: {dbg_path}")
+                if screenshot_callback:
+                    screenshot_callback(dbg_path)
+            except Exception:
+                pass
+            raise Exception("No se encontró el botón 'Comprar ya' tras 45 s. Revisa la captura de debug.")
 
+        log("🛒 Clicando en 'Comprar ya'...")
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", target_buy)
         time.sleep(1)
-        driver.execute_script("arguments[0].click();", target_buy)
+        try:
+            driver.execute_script("arguments[0].click();", target_buy)
+        except Exception:
+            ActionChains(driver).move_to_element(target_buy).click().perform()
 
-        # 3. Esperar al modal de login/cliente y clicar 'No'
-        log("⏳ Esperando ventana de confirmación '¿Eres cliente?' y clicando en 'No'...")
-        wait.until(lambda d: d.find_elements(By.XPATH, "//button[contains(@onclick, 'notUserFixedSubmit') or (contains(@class, 'c-button') and normalize-space()='No')]"))
-        time.sleep(1.5)
-
-        no_btns = driver.find_elements(By.XPATH, "//button[contains(@onclick, 'notUserFixedSubmit') or (contains(@class, 'c-button') and normalize-space()='No')]")
-        if no_btns:
-            driver.execute_script("arguments[0].click();", no_btns[0])
-            time.sleep(3)
+        # ── 3. Esperar modal '¿Eres cliente?' y clicar 'No' ─────────────────
+        log("⏳ Buscando botón 'No' (¿Eres cliente?)...")
+        NO_SELECTORS = [
+            (By.XPATH, "//button[contains(@onclick, 'notUserFixedSubmit')]"),
+            (By.XPATH, "//button[contains(@class, 'c-button') and normalize-space()='No']"),
+            (By.XPATH, "//button[normalize-space()='No']"),
+            (By.XPATH, "//a[normalize-space()='No']"),
+            (By.XPATH, "//button[contains(translate(normalize-space(), 'NO', 'no'), 'no soy cliente')]"),
+            (By.XPATH, "//button[contains(normalize-space(), 'No,')]"),
+        ]
+        t_no = time.time()
+        no_clicked = False
+        while time.time() - t_no < 30 and not no_clicked:
+            for by, sel in NO_SELECTORS:
+                try:
+                    els = [e for e in driver.find_elements(by, sel) if e.is_displayed()]
+                    if els:
+                        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", els[0])
+                        time.sleep(0.5)
+                        driver.execute_script("arguments[0].click();", els[0])
+                        no_clicked = True
+                        log("✅ Botón 'No' pulsado.")
+                        break
+                except Exception:
+                    pass
+            if not no_clicked:
+                time.sleep(1)
+        if not no_clicked:
+            log("⚠️ Modal '¿Eres cliente?' no apareció, continuando...")
+        time.sleep(3)
 
         # 4. Ajustar cantidad de líneas (eSIMs)
         clicks_needed = max(0, min(3, num_esims) - 1)
@@ -979,45 +1054,97 @@ def run_simyo_order(
         else:
             log("ℹ️ Configuración con 1 eSIM (no se requieren líneas adicionales).")
 
-        # 5. Clicar en 'Tramitar pedido'
-        log("📋 Clicando en 'Tramitar pedido'...")
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "button.js-order-cart")))
-        order_btns = driver.find_elements(By.CSS_SELECTOR, "button.js-order-cart")
-        if not order_btns:
+        # ── 5. Clicar en 'Tramitar pedido' ───────────────────────────────────
+        log("📋 Buscando botón 'Tramitar pedido'...")
+        ORDER_SELECTORS = [
+            (By.CSS_SELECTOR, "button.js-order-cart"),
+            (By.XPATH, "//button[contains(normalize-space(), 'Tramitar')]"),
+            (By.XPATH, "//a[contains(normalize-space(), 'Tramitar')]"),
+            (By.XPATH, "//button[contains(normalize-space(), 'pedido')]"),
+        ]
+        t_ord = time.time()
+        order_clicked = False
+        while time.time() - t_ord < 30 and not order_clicked:
+            for by, sel in ORDER_SELECTORS:
+                try:
+                    els = [e for e in driver.find_elements(by, sel) if e.is_displayed()]
+                    if els:
+                        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", els[0])
+                        time.sleep(0.5)
+                        driver.execute_script("arguments[0].click();", els[0])
+                        order_clicked = True
+                        log("✅ 'Tramitar pedido' pulsado.")
+                        break
+                except Exception:
+                    pass
+            if not order_clicked:
+                time.sleep(1)
+        if not order_clicked:
             raise Exception("No se encontró el botón 'Tramitar pedido'.")
-        driver.execute_script("arguments[0].click();", order_btns[0])
 
         # 6. Configuración de líneas: Prepago, Número nuevo, eSIM
-        log("⚙️ Seleccionando opciones: Prepago, Número nuevo y eSIM...")
-        wait.until(lambda d: "newOrder" in d.current_url or d.find_elements(By.XPATH, "//label[contains(@for, 'consumo_prepago') or contains(., 'Prepago')]"))
+        # ── 6. Configuración: Prepago, Número nuevo, eSIM ───────────────────
+        log("⚙️ Esperando página de configuración de líneas...")
+        t_cfg = time.time()
+        while time.time() - t_cfg < 30:
+            if ("newOrder" in driver.current_url
+                    or driver.find_elements(By.XPATH, "//label[contains(@for, 'consumo_prepago') or contains(., 'Prepago')]")):
+                break
+            time.sleep(1.5)
         time.sleep(2)
+        log("⚙️ Seleccionando: Prepago, Número nuevo y eSIM...")
 
-        prepago_labels = driver.find_elements(By.XPATH, "//label[contains(@for, 'consumo_prepago') or contains(., 'Prepago')]")
-        for p in prepago_labels:
+        # Prepago
+        for sel in [
+            "//label[contains(@for, 'consumo_prepago')]",
+            "//label[contains(normalize-space(), 'Prepago')]",
+            "//input[@id='consumo_prepago']",
+        ]:
             try:
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", p)
-                driver.execute_script("arguments[0].click();", p)
-                time.sleep(0.5)
+                els = driver.find_elements(By.XPATH, sel)
+                for p in els:
+                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", p)
+                    driver.execute_script("arguments[0].click();", p)
+                    time.sleep(0.5)
+                if els:
+                    break
             except Exception:
                 pass
 
-        nuevo_labels = driver.find_elements(By.XPATH, "//label[contains(@for, 'nuevo_numero_radio') or contains(., 'Número nuevo')]")
-        for n in nuevo_labels:
+        # Número nuevo
+        for sel in [
+            "//label[contains(@for, 'nuevo_numero_radio')]",
+            "//label[contains(normalize-space(), 'Número nuevo')]",
+            "//label[contains(normalize-space(), 'numero nuevo')]",
+        ]:
             try:
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", n)
-                driver.execute_script("arguments[0].click();", n)
-                time.sleep(0.5)
+                els = driver.find_elements(By.XPATH, sel)
+                for n in els:
+                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", n)
+                    driver.execute_script("arguments[0].click();", n)
+                    time.sleep(0.5)
+                if els:
+                    break
             except Exception:
                 pass
 
-        esim_labels = driver.find_elements(By.XPATH, "//label[contains(@for, 'esim') or .//span[contains(text(), 'eSIM')]]")
-        for e in esim_labels:
+        # eSIM
+        for sel in [
+            "//label[contains(@for, 'esim')]",
+            "//label[.//span[contains(text(), 'eSIM')]]",
+            "//label[contains(normalize-space(), 'eSIM')]",
+        ]:
             try:
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", e)
-                driver.execute_script("arguments[0].click();", e)
-                time.sleep(0.5)
+                els = driver.find_elements(By.XPATH, sel)
+                for e in els:
+                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", e)
+                    driver.execute_script("arguments[0].click();", e)
+                    time.sleep(0.5)
+                if els:
+                    break
             except Exception:
                 pass
+
 
         # Clicar Continuar
         log("➡️ Clicando en 'Continuar'...")
