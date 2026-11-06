@@ -50,39 +50,42 @@ def generate_secure_password(length: int = 12) -> str:
 
 def get_edge_driver(headless: bool = True) -> webdriver.Chrome:
     """
-    Inicializa Chrome/Chromium WebDriver compatible con Render (Linux, sin pantalla).
-    Estrategia:
-      1. Busca el binario de Chrome/Chromium en rutas conocidas de Linux.
-      2. Si no encuentra chromedriver en PATH, usa webdriver-manager para descargarlo.
+    Inicializa Chrome headless compatible con Render (Docker, Linux sin pantalla).
+    Chrome se instala en el Dockerfile desde los repos oficiales de Google.
+    chromedriver se obtiene automáticamente via webdriver-manager.
     """
     import shutil
     import platform
 
     opts = Options()
 
-    # ── 1. Localizar binario de Chrome en Linux (Render usa Ubuntu) ──────────
+    # ── Binario de Chrome: rutas conocidas en Linux/Docker ────────────────
     if platform.system() == "Linux":
-        candidates = [
+        CHROME_PATHS = [
             "/usr/bin/google-chrome-stable",
             "/usr/bin/google-chrome",
             "/usr/bin/chromium-browser",
             "/usr/bin/chromium",
-            "/usr/local/bin/chrome",
         ]
-        for chrome_bin in candidates:
-            if os.path.exists(chrome_bin):
-                opts.binary_location = chrome_bin
-                logger.info(f"[Chrome] binario encontrado: {chrome_bin}")
+        for path in CHROME_PATHS:
+            if os.path.exists(path):
+                opts.binary_location = path
+                logger.info(f"[Chrome] binario: {path}")
                 break
         else:
-            logger.warning("[Chrome] No se encontró binario; Selenium usará el PATH por defecto.")
+            # Si webdriver-manager descargó Chrome, buscar en su caché
+            wdm_cache = os.path.expanduser("~/.wdm/drivers/chromedriver")
+            if os.path.isdir(wdm_cache):
+                logger.info("[Chrome] usando binario gestionado por webdriver-manager")
+            else:
+                logger.warning("[Chrome] binario no localizado — Selenium usará el PATH")
 
-    # ── 2. Flags imprescindibles para contenedores sin pantalla ──────────────
-    opts.add_argument("--headless=new")          # modo sin ventana
-    opts.add_argument("--no-sandbox")            # requerido en contenedores root
-    opts.add_argument("--disable-dev-shm-usage") # /dev/shm pequeño en Render
-    opts.add_argument("--disable-gpu")           # sin GPU en servidores
-    opts.add_argument("--no-zygote")             # evita crash del proceso zygote
+    # ── Flags para contenedor sin pantalla ────────────────────────────────
+    opts.add_argument("--headless=new")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--no-zygote")
     opts.add_argument("--disable-crash-reporter")
     opts.add_argument("--disable-software-rasterizer")
     opts.add_argument("--disable-setuid-sandbox")
@@ -96,28 +99,33 @@ def get_edge_driver(headless: bool = True) -> webdriver.Chrome:
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     )
-
     opts.add_experimental_option("excludeSwitches", ["enable-automation"])
     opts.add_experimental_option("useAutomationExtension", False)
 
-    # ── 3. Localizar chromedriver ─────────────────────────────────────────────
+    # ── Localizar chromedriver ─────────────────────────────────────────────
+    # Prioridad: PATH del sistema → webdriver-manager (descarga automática)
     chromedriver_path = (
         shutil.which("chromedriver")
         or shutil.which("chromium-driver")
-        or shutil.which("chromium.chromedriver")
     )
 
     if chromedriver_path:
-        logger.info(f"[chromedriver] encontrado en PATH: {chromedriver_path}")
+        logger.info(f"[chromedriver] PATH: {chromedriver_path}")
         service = Service(executable_path=chromedriver_path)
     else:
-        # Fallback: webdriver-manager descarga el chromedriver correcto
-        logger.info("[chromedriver] no en PATH → usando webdriver-manager")
+        logger.info("[chromedriver] usando webdriver-manager...")
         try:
             from webdriver_manager.chrome import ChromeDriverManager
-            service = Service(ChromeDriverManager().install())
+            from webdriver_manager.core.os_manager import ChromeType
+            # Intentar con Google Chrome primero, luego Chromium
+            try:
+                drv_path = ChromeDriverManager().install()
+            except Exception:
+                drv_path = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()
+            logger.info(f"[chromedriver] instalado en: {drv_path}")
+            service = Service(executable_path=drv_path)
         except Exception as e:
-            logger.warning(f"[chromedriver] webdriver-manager falló ({e}), probando Service() vacío")
+            logger.warning(f"[chromedriver] webdriver-manager falló ({e}), usando Service() vacío")
             service = Service()
 
     driver = webdriver.Chrome(service=service, options=opts)

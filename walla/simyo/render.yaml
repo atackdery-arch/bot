@@ -1,10 +1,8 @@
 services:
   - type: worker
     name: simyo-bot
-    env: python
-    plan: starter          # mínimo con suficiente RAM para Chrome
-    buildCommand: bash build.sh
-    startCommand: python bot.py
+    env: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
