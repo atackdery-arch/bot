@@ -230,13 +230,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data["pending_saved_card"] = None
 
     text = (
-        "┌── [ ⚡ SIMYO AUTOMATION CORE // v2.0 ] ──┐\n"
-        "│ Tramitación 100% automatizada con Edge\n"
-        "│ para líneas eSIM Prepago con número nuevo.\n"
-        "└──────────────────────────────────────────┘\n\n"
-        "<code>[STATUS] : SYSTEM READY & IDLE</code>\n"
-        "<code>[TARGET] : simyo.es/cart (15GB + Ilimitadas)</code>\n\n"
-        "⚡ Presiona el botón para inicializar la secuencia:"
+        "⚡ <b>SIMYO AUTOMATION</b>  <code>v2.0</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "<code>STATUS »</code> SYSTEM READY\n"
+        "<code>TARGET »</code> simyo.es · 15GB + Ilimitadas\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Tramitación 100% automatizada para líneas eSIM\n"
+        "Prepago con número nuevo.\n\n"
+        "▶ Presiona el botón para comenzar:"
     )
     keyboard = [
         [InlineKeyboardButton("🚀 Iniciar Tramitación", callback_data="start_flow")]
@@ -257,11 +258,12 @@ async def _prompt_email_or_saved(query, context: ContextTypes.DEFAULT_TYPE) -> i
 
     if saved and "email" in saved and "phone" in saved:
         text = (
-            "┌── [ 💾 DATOS GUARDADOS ENCONTRADOS ] ──┐\n"
-            f"│ • <b>EMAIL   :</b> <code>{html.escape(saved['email'])}</code>\n"
-            f"│ • <b>TELÉFONO:</b> <code>{html.escape(saved['phone'])}</code>\n"
-            "└───────────────────────────────────────┘\n\n"
-            "¿Deseas reutilizar estos datos o ingresar unos nuevos?"
+            "💾 <b>Datos guardados</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📧 <b>Email:</b>    <code>{html.escape(saved['email'])}</code>\n"
+            f"📱 <b>Teléfono:</b> <code>{html.escape(saved['phone'])}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "¿Reutilizar estos datos o ingresar unos nuevos?"
         )
         keyboard = [
             [
@@ -273,9 +275,9 @@ async def _prompt_email_or_saved(query, context: ContextTypes.DEFAULT_TYPE) -> i
         return STATE_ASK_SAVE
 
     await query.edit_message_text(
-        "┌── [ 📧 INPUT // CORREO ELECTRÓNICO ] ──┐\n"
-        "│ Introduce tu correo de contacto para Simyo:\n"
-        "└─────────────────────────────────────────┘",
+        "📧 <b>Correo electrónico</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Introduce tu correo de contacto para Simyo:",
         parse_mode="HTML"
     )
     return STATE_EMAIL
@@ -292,11 +294,12 @@ async def start_flow_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if saved_card:
         context.user_data["pending_saved_card"] = saved_card
         text = (
-            "┌── [ 💳 TARJETA GUARDADA DISPONIBLE ] ──┐\n"
-            f"│ • <b>TARJETA:</b> <code>{_mask_card(saved_card['numero'])}</code>\n"
-            f"│ • <b>CADUCA :</b> <code>{saved_card['mes']}/{saved_card['ano']}</code>\n"
-            "└─────────────────────────────────────────┘\n\n"
-            "¿Quieres usar la misma tarjeta que la última vez?"
+            "💳 <b>Tarjeta guardada</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔢 <b>Número:</b> <code>{_mask_card(saved_card['numero'])}</code>\n"
+            f"📅 <b>Caduca:</b>  <code>{saved_card['mes']}/{saved_card['ano']}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "¿Usar la misma tarjeta que la última vez?"
         )
         keyboard = [
             [
@@ -354,13 +357,14 @@ async def handle_use_saved_callback(update: Update, context: ContextTypes.DEFAUL
     context.user_data["phone"] = saved["phone"]
 
     await query.edit_message_text(
-        "┌── [ ✓ CACHE CARGADA EN MEMORIA ] ──┐\n"
-        f"│ • <b>EMAIL   :</b> <code>{html.escape(saved['email'])}</code>\n"
-        f"│ • <b>TELÉFONO:</b> <code>{html.escape(saved['phone'])}</code>\n"
-        "└────────────────────────────────────┘\n\n"
-        "┌── [ 🆔 INPUT // DOCUMENTO DE IDENTIDAD ] ──┐\n"
-        "│ Introduce tu número de DNI o NIE (ej: 12345678Z):\n"
-        "└────────────────────────────────────────────┘",
+        "✅ <b>Datos cargados</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📧 <b>Email:</b>    <code>{html.escape(saved['email'])}</code>\n"
+        f"📱 <b>Teléfono:</b> <code>{html.escape(saved['phone'])}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🆔 <b>Documento de identidad</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Introduce tu DNI o NIE (ej: <code>12345678Z</code>):",
         parse_mode="HTML"
     )
     return STATE_DNI
@@ -371,9 +375,9 @@ async def handle_enter_new_callback(update: Update, context: ContextTypes.DEFAUL
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(
-        "┌── [ 📧 INPUT // CORREO ELECTRÓNICO ] ──┐\n"
-        "│ Introduce tu correo de contacto para Simyo:\n"
-        "└─────────────────────────────────────────┘",
+        "📧 <b>Correo electrónico</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Introduce tu correo de contacto para Simyo:",
         parse_mode="HTML"
     )
     return STATE_EMAIL
@@ -392,9 +396,9 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     context.user_data["email"] = email_text
     await update.message.reply_text(
-        "┌── [ 📱 INPUT // TELÉFONO ESPAÑOL ] ──┐\n"
-        "│ Introduce tu número móvil español (9 dígitos, ej: 612345678):\n"
-        "└───────────────────────────────────────┘",
+        "📱 <b>Teléfono español</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Introduce tu móvil español de 9 dígitos (ej: <code>612345678</code>):",
         parse_mode="HTML"
     )
     return STATE_PHONE
@@ -415,11 +419,12 @@ async def receive_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data["phone"] = clean_phone
 
     text = (
-        "┌── [ 💾 SYSTEM CACHE // GUARDAR DATOS ] ──┐\n"
-        f"│ • <b>EMAIL   :</b> <code>{html.escape(context.user_data['email'])}</code>\n"
-        f"│ • <b>TELÉFONO:</b> <code>{html.escape(clean_phone)}</code>\n"
-        "└──────────────────────────────────────────┘\n\n"
-        "¿Deseas guardar estos datos para las próximas veces?"
+        "💾 <b>Resumen de datos</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📧 <b>Email:</b>    <code>{html.escape(context.user_data['email'])}</code>\n"
+        f"📱 <b>Teléfono:</b> <code>{html.escape(clean_phone)}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "¿Guardar estos datos para las próximas veces?"
     )
     keyboard = [
         [
@@ -449,9 +454,9 @@ async def handle_save_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await query.edit_message_text(
         f"{save_msg}\n\n"
-        "┌── [ 🆔 INPUT // DOCUMENTO DE IDENTIDAD ] ──┐\n"
-        "│ Introduce tu número de DNI o NIE (ej: 12345678Z):\n"
-        "└────────────────────────────────────────────┘",
+        "\n🆔 <b>Documento de identidad</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Introduce tu DNI o NIE (ej: <code>12345678Z</code>):",
         parse_mode="HTML"
     )
     return STATE_DNI
@@ -470,12 +475,12 @@ async def receive_dni(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     context.user_data["dni"] = dni_text
     await update.message.reply_text(
-        "┌── [ 👤 INPUT // NOMBRE COMPLETO TITULAR ] ──┐\n"
-        "│ Introduce el nombre completo del titular:\n"
-        "└─────────────────────────────────────────────┘\n\n"
-        "💡 <i>Ejemplos de asignación:</i>\n"
-        "• <code>Ana Maria Ramos Castillon</code> (Nombre: <code>Ana Maria</code>)\n"
-        "• <code>Ana Romero Mendoza</code> (Nombre: <code>Ana</code>)",
+        "👤 <b>Nombre completo del titular</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Introduce el nombre y apellidos completos.\n\n"
+        "💡 <i>Ejemplos:</i>\n"
+        "• <code>Ana Maria Ramos Castillon</code>  →  Nombre: <code>Ana Maria</code>\n"
+        "• <code>Ana Romero Mendoza</code>  →  Nombre: <code>Ana</code>",
         parse_mode="HTML"
     )
     return STATE_NAME
@@ -500,14 +505,15 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
     ln2_str = ln2 if ln2 else "(vacío)"
     await update.message.reply_text(
-        "┌── [ ✓ TITULAR INTERPRETADO ] ──┐\n"
-        f"│ • <b>NOMBRE     :</b> <code>{html.escape(fn)}</code>\n"
-        f"│ • <b>1º APELLIDO:</b> <code>{html.escape(ln1)}</code>\n"
-        f"│ • <b>2º APELLIDO:</b> <code>{html.escape(ln2_str)}</code>\n"
-        "└────────────────────────────────┘\n\n"
-        "┌── [ 📅 INPUT // FECHA DE NACIMIENTO ] ──┐\n"
-        "│ Formato: DD/MM/AAAA (ej: 15/04/1990)\n"
-        "└─────────────────────────────────────────┘",
+        "✅ <b>Titular interpretado</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Nombre:</b>      <code>{html.escape(fn)}</code>\n"
+        f"🔡 <b>1º Apellido:</b> <code>{html.escape(ln1)}</code>\n"
+        f"🔡 <b>2º Apellido:</b> <code>{html.escape(ln2_str)}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "📅 <b>Fecha de nacimiento</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Formato: <code>DD/MM/AAAA</code>  (ej: <code>15/04/1990</code>)",
         parse_mode="HTML"
     )
     return STATE_BIRTHDATE
@@ -538,9 +544,9 @@ async def receive_birthdate(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         ]
     ]
     await update.message.reply_text(
-        "┌── [ 📲 CONFIG // CANTIDAD DE ESIMS ] ──┐\n"
-        "│ Selecciona cuántas líneas deseas tramitar (máx 3):\n"
-        "└─────────────────────────────────────────┘",
+        "📲 <b>Cantidad de eSIMs</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "Selecciona cuántas líneas deseas tramitar (máx. 3):",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
@@ -582,16 +588,17 @@ async def handle_esim_count(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         tarjeta_info = f"guardada {_mask_card(data['initial_card']['numero'])}"
 
     initial_panel_html = (
-        "┌── [ ⚡ SIMYO AUTOMATION CONSOLE ] ──┐\n"
-        f"│ <b>TITULAR:</b> <code>{html.escape(titular_name)}</code>\n"
-        f"│ <b>DNI/NIE:</b> <code>{html.escape(data['dni'])}</code>\n"
-        f"│ <b>ORDEN  :</b> <code>{num_esims}x eSIM Prepago (Nuevo)</code>\n"
-        f"│ <b>TARJETA:</b> <code>{html.escape(tarjeta_info)}</code>\n"
-        "└────────────────────────────────────┘\n\n"
-        "<pre>[>] Inicializando Chrome WebDriver (headless)...\n"
-        "[>] Conectando con los servidores de Simyo...</pre>\n\n"
-        "🛰️ <b>PASO ACTUAL:</b>\n"
-        "<code>Iniciando navegador y cargando la página...</code>"
+        "⚡ <b>SIMYO AUTOMATION CONSOLE</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Titular:</b> <code>{html.escape(titular_name)}</code>\n"
+        f"🆔 <b>DNI/NIE:</b> <code>{html.escape(data['dni'])}</code>\n"
+        f"📶 <b>Orden:</b>   <code>{num_esims}x eSIM Prepago (Nuevo)</code>\n"
+        f"💳 <b>Tarjeta:</b> <code>{html.escape(tarjeta_info)}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "⏳ <b>Iniciando automatización...</b>\n"
+        "<code>[✓] Chrome WebDriver listo</code>\n"
+        "<code>[~] Conectando con simyo.es...</code>\n\n"
+        "🛰️ <b>Cargando Simyo...</b>"
     )
 
     msg = await context.bot.send_message(chat_id=chat_id, text=initial_panel_html, parse_mode="HTML")
@@ -644,13 +651,14 @@ class LiveTerminal:
         log_content = "\n".join(visible) if visible else "[>] Ejecutando secuencia..."
 
         return (
-            "┌── [ ⚡ SIMYO AUTOMATION CONSOLE ] ──┐\n"
-            f"│ <b>TITULAR:</b> <code>{html.escape(self.name)}</code>\n"
-            f"│ <b>DNI/NIE:</b> <code>{html.escape(self.dni)}</code>\n"
-            f"│ <b>ORDEN  :</b> <code>{self.lines_count}x eSIM Prepago (Nuevo)</code>\n"
-            "└────────────────────────────────────┘\n\n"
+            "⚡ <b>SIMYO AUTOMATION CONSOLE</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>Titular:</b> <code>{html.escape(self.name)}</code>\n"
+            f"🆔 <b>DNI/NIE:</b> <code>{html.escape(self.dni)}</code>\n"
+            f"📶 <b>Orden:</b>   <code>{self.lines_count}x eSIM Prepago (Nuevo)</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"<pre>{html.escape(log_content)}</pre>\n\n"
-            f"🛰️ <b>PASO ACTUAL:</b>\n"
+            f"🛰️ <b>Paso actual:</b>\n"
             f"<code>{html.escape(self.current_status)}</code>"
         )
 
@@ -717,7 +725,7 @@ async def run_automation_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, 
                         context.bot.send_photo(
                             chat_id=chat_id,
                             photo=f,
-                            caption="📸 <code>[SNAPSHOT // EDGE WEBDRIVER EVIDENCE]</code>",
+                            caption="📸 <code>[SNAPSHOT // CHROME HEADLESS]</code>",
                             parse_mode="HTML"
                         ),
                         loop
@@ -733,15 +741,13 @@ async def run_automation_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, 
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=(
-                    "┌── [ 💳 GATEWAY PAYMENT // REQUERIDO ] ──┐\n"
-                    "│ El formulario de pago de Simyo ya está en pantalla.\n"
-                    "└─────────────────────────────────────────┘\n\n"
-                    "Introduce la tarjeta en formato:\n"
-                    "<code>NUMERO|MM|AA|CVV</code>\n\n"
-                    "Ejemplo:\n"
-                    "<code>4766635218246360|09|30|078</code>\n\n"
-                    "⚠️ El <b>CVV es obligatorio</b> para poder continuar.\n\n"
-                    "⏳ <i>Esperando credencial... (10 minutos máximo)</i>"
+                    "💳 <b>Datos de pago requeridos</b>\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "El formulario de Simyo está listo. Introduce la tarjeta:\n\n"
+                    "<code>NUMERO|MM|AA|CVV</code>\n"
+                    "Ejemplo: <code>4766635218246360|09|30|078</code>\n\n"
+                    "⚠️ El <b>CVV es obligatorio</b> para continuar.\n"
+                    "⏳ <i>Esperando... (máx. 10 minutos)</i>"
                 ),
                 parse_mode="HTML"
             )
@@ -765,12 +771,13 @@ async def run_automation_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, 
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=(
-                    "┌── [ ❌ TARJETA RECHAZADA ] ──┐\n"
-                    f"│ • <b>TARJETA :</b> <code>{masked}</code>\n"
-                    f"│ • <b>INTENTO :</b> <code>{intento}</code>\n"
-                    "└──────────────────────────────┘\n\n"
-                    "Simyo no ha aceptado la tarjeta.\n"
-                    "🔁 Cerrando la pasarela, repitiendo el pago y pidiendo una tarjeta nueva..."
+                    "❌ <b>Tarjeta rechazada</b>\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🔢 <b>Tarjeta:</b> <code>{masked}</code>\n"
+                    f"🔄 <b>Intento:</b> <code>{intento}</code>\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "Simyo no aceptó esta tarjeta.\n"
+                    "🔁 Reintentando el pago con una tarjeta nueva..."
                 ),
                 parse_mode="HTML"
             )
@@ -802,7 +809,7 @@ async def run_automation_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, 
         driver_callback=sync_driver_callback,
         initial_card=data.get("initial_card"),
         keep_browser_open=True,
-        headless=False
+        headless=True
     )
 
     # Guardar la tarjeta si Simyo la ha aceptado
@@ -825,29 +832,29 @@ async def run_automation_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, 
             )
 
         final_text = (
-            "┌── [ 🎉 TRAMITACIÓN COMPLETADA // ÉXITO ] ──┐\n"
-            f"│ • <b>LÍNEAS ESIM :</b> <code>{data['num_esims']}</code>\n"
-            f"│ • <b>DNI TITULAR :</b> <code>{data['dni']}</code>\n"
-            f"│ • <b>EMAIL SIMYO :</b> <code>{data['email']}</code>\n"
-            f"│ • <b>PASSWORD    :</b> <code>{res.get('generated_password')}</code>\n"
-            "└──────────────────────────────────────────┘\n\n"
+            "🎉 <b>¡Tramitación completada!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📶 <b>Líneas eSIM:</b> <code>{data['num_esims']}</code>\n"
+            f"🆔 <b>DNI:</b>         <code>{data['dni']}</code>\n"
+            f"📧 <b>Email:</b>        <code>{data['email']}</code>\n"
+            f"🔐 <b>Password:</b>     <code>{res.get('generated_password')}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"{tarjeta_txt}"
-            "ℹ️ <i>Simyo te enviará un enlace por email/SMS para completar la validación final de identidad.</i>\n\n"
-            "🌐 <b>EDGE WEBDRIVER ACTIVO:</b>\n"
-            "<code>El navegador se mantiene abierto en pantalla.</code>\n"
-            "👉 Envía <b>/cancel</b> en Telegram cuando desees cerrar el navegador."
+            "ℹ️ <i>Simyo te enviará un enlace por email/SMS para la validación final.</i>\n\n"
+            "🌐 El navegador permanece abierto.\n"
+            "👉 Escribe <b>/cancel</b> para cerrarlo."
         )
     else:
         terminal.add_log(f"ERROR: {res.get('message', '')}")
         await terminal._send_edit()
 
         final_text = (
-            "┌── [ ❌ ERROR // PROCESO INTERRUMPIDO ] ──┐\n"
-            f"│ <b>Detalle:</b> <code>{html.escape(res.get('message', ''))}</code>\n"
-            "└─────────────────────────────────────────┘\n\n"
-            "🌐 <b>EDGE WEBDRIVER ACTIVO:</b>\n"
-            "<code>El navegador se mantiene abierto para tu inspección.</code>\n"
-            "👉 Envía <b>/cancel</b> para cerrar Edge o <b>/start</b> para reiniciar."
+            "❌ <b>Error en el proceso</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"<code>{html.escape(res.get('message', ''))}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🌐 El navegador permanece abierto para inspección.\n"
+            "👉 <b>/cancel</b> para cerrarlo · <b>/start</b> para reiniciar."
         )
 
     await context.bot.send_message(chat_id=chat_id, text=final_text, parse_mode="HTML")
@@ -885,12 +892,13 @@ async def receive_card_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     masked = _mask_card(parsed["numero"])
     await update.message.reply_text(
-        "┌── [ 🔒 CREDENCIAL DE PAGO RECIBIDA ] ──┐\n"
-        f"│ • <b>TARJETA :</b> <code>{masked}</code>\n"
-        f"│ • <b>CADUCA  :</b> <code>{parsed['mes']}/{parsed['ano']}</code>\n"
-        f"│ • <b>CVV     :</b> <code>{parsed['cvv']}</code>\n"
-        "└───────────────────────────────────────┘\n\n"
-        "✍️ <i>Escribiendo datos en el formulario y pulsando Pagar...</i>",
+        "🔒 <b>Tarjeta recibida</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔢 <b>Número:</b> <code>{masked}</code>\n"
+        f"📅 <b>Caduca:</b>  <code>{parsed['mes']}/{parsed['ano']}</code>\n"
+        f"🔑 <b>CVV:</b>    <code>{parsed['cvv']}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "✍️ <i>Introduciendo datos y pulsando Pagar...</i>",
         parse_mode="HTML"
     )
 
@@ -916,18 +924,18 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if driver_closed:
         msg = (
-            "┌── [ 🛑 SESIÓN FINALIZADA // CANCEL ] ──┐\n"
-            "│ • <b>ESTADO :</b> <code>PROCESO TERMINADO</code>\n"
-            "│ • <b>EDGE   :</b> <code>NAVEGADOR CERRADO</code>\n"
-            "└────────────────────────────────────────┘\n\n"
-            "Se ha cerrado la ventana de Microsoft Edge con éxito.\n"
-            "Para comenzar una nueva tramitación, envía <b>/start</b>."
+            "🛑 <b>Sesión finalizada</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "✅ Proceso terminado\n"
+            "🌐 Navegador cerrado\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Escribe <b>/start</b> para comenzar una nueva tramitación."
         )
     else:
         msg = (
-            "┌── [ 🛑 OPERACIÓN CANCELADA ] ──┐\n"
-            "└────────────────────────────────┘\n\n"
-            "Operación cancelada. Puedes escribir <b>/start</b> para comenzar de nuevo."
+            "🛑 <b>Operación cancelada</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Escribe <b>/start</b> para comenzar de nuevo."
         )
 
     await update.message.reply_text(msg, parse_mode="HTML")

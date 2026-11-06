@@ -50,35 +50,47 @@ def generate_secure_password(length: int = 12) -> str:
 
 def get_edge_driver(headless: bool = True) -> webdriver.Chrome:
     """
-    Inicializa y devuelve una instancia de Chrome/Chromium WebDriver.
-    Compatible con Render (Linux) y Windows. Siempre corre en modo headless.
+    Inicializa Chrome/Chromium WebDriver compatible con Render (Linux, sin pantalla).
+    Estrategia:
+      1. Busca el binario de Chrome/Chromium en rutas conocidas de Linux.
+      2. Si no encuentra chromedriver en PATH, usa webdriver-manager para descargarlo.
     """
     import shutil
     import platform
 
     opts = Options()
 
-    # Detectar si estamos en Linux (Render) y buscar Chromium
+    # ── 1. Localizar binario de Chrome en Linux (Render usa Ubuntu) ──────────
     if platform.system() == "Linux":
-        for chrome_bin in ("/usr/bin/chromium", "/usr/bin/chromium-browser",
-                           "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"):
+        candidates = [
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/google-chrome",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+            "/usr/local/bin/chrome",
+        ]
+        for chrome_bin in candidates:
             if os.path.exists(chrome_bin):
                 opts.binary_location = chrome_bin
-                logger.info(f"Usando Chrome/Chromium en: {chrome_bin}")
+                logger.info(f"[Chrome] binario encontrado: {chrome_bin}")
                 break
+        else:
+            logger.warning("[Chrome] No se encontró binario; Selenium usará el PATH por defecto.")
 
-    # --- Flags obligatorios para modo headless / sin entorno gráfico ---
-    opts.add_argument("--headless=new")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--disable-gpu")
+    # ── 2. Flags imprescindibles para contenedores sin pantalla ──────────────
+    opts.add_argument("--headless=new")          # modo sin ventana
+    opts.add_argument("--no-sandbox")            # requerido en contenedores root
+    opts.add_argument("--disable-dev-shm-usage") # /dev/shm pequeño en Render
+    opts.add_argument("--disable-gpu")           # sin GPU en servidores
+    opts.add_argument("--no-zygote")             # evita crash del proceso zygote
+    opts.add_argument("--disable-crash-reporter")
     opts.add_argument("--disable-software-rasterizer")
+    opts.add_argument("--disable-setuid-sandbox")
     opts.add_argument("--window-size=1920,1080")
     opts.add_argument("--disable-blink-features=AutomationControlled")
     opts.add_argument("--disable-notifications")
     opts.add_argument("--disable-extensions")
     opts.add_argument("--disable-infobars")
-    opts.add_argument("--disable-setuid-sandbox")
     opts.add_argument(
         "--user-agent=Mozilla/5.0 (X11; Linux x86_64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -88,18 +100,25 @@ def get_edge_driver(headless: bool = True) -> webdriver.Chrome:
     opts.add_experimental_option("excludeSwitches", ["enable-automation"])
     opts.add_experimental_option("useAutomationExtension", False)
 
-    # Buscar chromedriver en el PATH del sistema
+    # ── 3. Localizar chromedriver ─────────────────────────────────────────────
     chromedriver_path = (
         shutil.which("chromedriver")
         or shutil.which("chromium-driver")
         or shutil.which("chromium.chromedriver")
     )
+
     if chromedriver_path:
-        logger.info(f"Usando chromedriver en: {chromedriver_path}")
+        logger.info(f"[chromedriver] encontrado en PATH: {chromedriver_path}")
         service = Service(executable_path=chromedriver_path)
     else:
-        logger.info("chromedriver no encontrado en PATH, usando Service() predeterminado")
-        service = Service()
+        # Fallback: webdriver-manager descarga el chromedriver correcto
+        logger.info("[chromedriver] no en PATH → usando webdriver-manager")
+        try:
+            from webdriver_manager.chrome import ChromeDriverManager
+            service = Service(ChromeDriverManager().install())
+        except Exception as e:
+            logger.warning(f"[chromedriver] webdriver-manager falló ({e}), probando Service() vacío")
+            service = Service()
 
     driver = webdriver.Chrome(service=service, options=opts)
     driver.set_page_load_timeout(60)
